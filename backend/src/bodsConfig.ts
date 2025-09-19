@@ -1,28 +1,18 @@
-export interface BodsConfig {
-  apiKey: string;
+// backend/src/bodsConfig.ts
+export type BodsConfig = {
   vehicleUrls: string[];
-}
+};
 
-function buildVehicleUrlForBbox(bbox: string, apiKey: string) {
-  const params = new URLSearchParams();
-  params.set('api_key', apiKey);
-  params.set('boundingBox', bbox);
-  return `https://data.bus-data.dft.gov.uk/api/v1/gtfsrtdatafeed/?${params.toString()}`;
-}
-
+/**
+ * Minimal resolver:
+ * Prefer BODS_VEHICLE_URL (comma-separated GTFS-RT URLs).
+ * If not provided, fall back to *empty* and the fetcher will complain usefully.
+ */
 export function resolveBodsConfig(): BodsConfig {
-  const apiKey = process.env.BODS_API_KEY?.trim();
-  if (!apiKey) {
-    throw new Error('BODS_API_KEY is not set. Please provide a Bus Open Data Service API key.');
-  }
-
-  const bbox = process.env.BODS_BBOX?.trim();
-  if (!bbox) {
-    throw new Error('BODS_BBOX is not set. Provide a bounding box: minLat,maxLat,minLon,maxLon');
-  }
-
-  return {
-    apiKey,
-    vehicleUrls: [buildVehicleUrlForBbox(bbox, apiKey)],
-  };
+  const env = process.env.BODS_VEHICLE_URL || "";
+  const vehicleUrls = env
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean);
+  return { vehicleUrls };
 }

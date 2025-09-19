@@ -5,9 +5,9 @@ export type FeedDiag = {
   httpStatus?: number;
   statusText?: string;
   bytes?: number;
-  entities?: number;      // decoded GTFS-RT entities
+  entities?: number;
   error?: string;
-  at?: string;            // ISO timestamp of this probe
+  at?: string; // ISO when this diag was recorded
 };
 
 export type BackendStatus = {
@@ -18,7 +18,7 @@ export type BackendStatus = {
   routesCount: number;
   stopsCount: number;
   usingSamples: boolean;
-  feeds?: FeedDiag[];     // 👈 NEW: per-feed info
+  feeds?: FeedDiag[];
 };
 
 let status: BackendStatus = {
