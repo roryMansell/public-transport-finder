@@ -1,3 +1,4 @@
+// backend/src/vehicleFetcher.ts
 import gtfs from 'gtfs-realtime-bindings';
 const { transit_realtime } = gtfs;
 import Long from 'long';
@@ -5,6 +6,9 @@ import type { VehiclePosition } from './types.js';
 import type { BodsConfig } from './bodsConfig.js';
 import type { RouteGeometry } from './geometry.js';
 import { projectPointOntoRoute } from './geometry.js';
+
+// ✅ status updates
+import { setStatus } from './status.js';
 
 function resolveTimestamp(vehicleTimestamp?: number | Long | null, headerTimestamp?: number | Long | null) {
   const timestamp = vehicleTimestamp ?? headerTimestamp ?? Math.floor(Date.now() / 1000);
@@ -27,12 +31,16 @@ export async function fetchVehiclePositions(
   tripToRoute: Map<string, string>,
 ): Promise<VehiclePosition[]> {
   const vehicles: VehiclePosition[] = [];
+  let hadAnySuccess = false;
+  let lastErrorMsg: string | undefined;
 
   for (const url of config.vehicleUrls) {
     try {
       const response = await fetch(url);
       if (!response.ok) {
-        console.error(`Failed to load vehicle positions from ${url}: ${response.status} ${response.statusText}`);
+        const msg = `Failed to load vehicle positions from ${url}: ${response.status} ${response.statusText}`;
+        console.error(msg);
+        lastErrorMsg = msg;
         continue;
       }
 
@@ -71,9 +79,29 @@ export async function fetchVehiclePositions(
           progress: projection?.progress,
         });
       }
+
+      hadAnySuccess = true;
+      lastErrorMsg = undefined; // at least one URL worked
     } catch (err) {
-      console.error(`Error fetching vehicle positions from ${url}:`, err);
+      const msg = `Error fetching vehicle positions from ${url}: ${err instanceof Error ? err.message : String(err)}`;
+      console.error(msg);
+      lastErrorMsg = msg;
+      // continue to next URL
     }
+  }
+
+  // ✅ Update backend status once per full polling cycle
+  if (hadAnySuccess) {
+    setStatus({
+      lastFetchAt: new Date().toISOString(),
+      vehiclesCount: vehicles.length,
+      lastFetchError: undefined,
+    });
+  } else if (lastErrorMsg) {
+    setStatus({
+      lastFetchError: lastErrorMsg,
+      // keep vehiclesCount as-is; next success will refresh it
+    });
   }
 
   return vehicles;

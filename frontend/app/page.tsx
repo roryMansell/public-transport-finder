@@ -1,13 +1,18 @@
 "use client";
 
-import dynamic from 'next/dynamic';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import RouteSidebar from '../components/RouteSidebar';
-import { getRoutes, type Route } from '../lib/api';
+import dynamic from "next/dynamic";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import RouteSidebar from "../components/RouteSidebar";
+import { getRoutes, type Route } from "../lib/api";
 
-type ModeFilter = 'all' | Route['mode'];
+// NEW: status polling + UI
+import { useBackendStatus } from "../lib/useBackendStatus";
+import { StatusBadge } from "../components/StatusBadge";
+import EmptyOverlay from "../components/EmptyOverlay";
 
-const TransportMap = dynamic(() => import('../components/TransportMap'), {
+type ModeFilter = "all" | Route["mode"];
+
+const TransportMap = dynamic(() => import("../components/TransportMap"), {
   ssr: false,
   loading: () => (
     <div className="flex-1 flex items-center justify-center text-stone-500">
@@ -35,7 +40,7 @@ function useRoutes() {
       } catch (err) {
         console.error(err);
         if (!cancelled) {
-          setError('Could not load routes');
+          setError("Could not load routes");
         }
       } finally {
         if (!cancelled) {
@@ -57,27 +62,34 @@ function useRoutes() {
       loading,
       error,
     }),
-    [routes, loading, error],
+    [routes, loading, error]
   );
 }
 
 export default function HomePage() {
   const { routes, loading, error } = useRoutes();
-  const [selectedMode, setSelectedMode] = useState<ModeFilter>('bus');
+  const [selectedMode, setSelectedMode] = useState<ModeFilter>("bus");
   const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([]);
 
+  // NEW: backend status (realtime enabled? last error? counts?)
+  const status = useBackendStatus();
+
   useEffect(() => {
-    setSelectedRouteIds((current) => current.filter((id) => routes.some((route) => route.id === id)));
+    setSelectedRouteIds((current) =>
+      current.filter((id) => routes.some((route) => route.id === id))
+    );
   }, [routes]);
 
   const handleModeChange = useCallback(
     (mode: ModeFilter) => {
       setSelectedMode(mode);
-      if (mode === 'all') return;
-      const allowed = new Set(routes.filter((route) => route.mode === mode).map((route) => route.id));
+      if (mode === "all") return;
+      const allowed = new Set(
+        routes.filter((route) => route.mode === mode).map((route) => route.id)
+      );
       setSelectedRouteIds((current) => current.filter((id) => allowed.has(id)));
     },
-    [routes],
+    [routes]
   );
 
   const handleRouteToggle = useCallback(
@@ -91,15 +103,18 @@ export default function HomePage() {
         }
         return [...current, routeId];
       });
-      if (!isSelected && selectedMode !== 'all' && route.mode !== selectedMode) {
+      if (!isSelected && selectedMode !== "all" && route.mode !== selectedMode) {
         handleModeChange(route.mode);
       }
     },
-    [routes, selectedMode, selectedRouteIds, handleModeChange],
+    [routes, selectedMode, selectedRouteIds, handleModeChange]
   );
 
   return (
     <main className="flex flex-1 flex-col md:flex-row">
+      {/* Status badge floats at top-right of the viewport */}
+      <StatusBadge status={status} />
+
       <div className="w-full md:w-80 bg-white border-b md:border-b-0 md:border-r border-stone-200">
         <RouteSidebar
           routes={routes}
@@ -111,10 +126,18 @@ export default function HomePage() {
           onRouteToggle={handleRouteToggle}
         />
       </div>
+
       <div className="flex-1 relative min-h-[50vh]">
         <Suspense fallback={<div className="p-4">Loading map…</div>}>
-          <TransportMap routes={routes} selectedMode={selectedMode} selectedRouteIds={selectedRouteIds} />
+          <TransportMap
+            routes={routes}
+            selectedMode={selectedMode}
+            selectedRouteIds={selectedRouteIds}
+          />
         </Suspense>
+
+        {/* In-map diagnostic overlay explains "why nothing is shown" */}
+        <EmptyOverlay status={status} />
       </div>
     </main>
   );

@@ -1,51 +1,57 @@
-import http from 'node:http';
-import express from 'express';
-import cors from 'cors';
-import { getRealtimeLookups, loadSampleVehicles } from './dataStore.js';
-import { VehicleSimulator } from './vehicleSimulator.js';
-import { registerRoutes } from './routes.js';
-import { createWebSocketServer } from './websocketServer.js';
-import { resolveBodsConfig } from './bodsConfig.js';
-import { fetchVehiclePositions } from './vehicleFetcher.js';
-import type { VehiclePosition } from './types.js';
+// backend/src/index.ts
+import express from "express";
+import cors from "cors";
+import morgan from "morgan";
 
-const PORT = Number(process.env.PORT ?? 4000);
+import { getRoutes, getStops } from "./dataStore";
+import { getStatus, setStatus } from "./status";
 
-async function main() {
-  const app = express();
-  app.use(cors());
-  app.use(express.json({ limit: '1mb' }));
-  app.get('/health', (_req, res) => {
-    res.json({ status: 'ok' });
-  });
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: "1mb" }));
+app.use(morgan("dev"));
 
-  let fetcher: (() => Promise<VehiclePosition[]>) | undefined;
-  let initialVehicles: VehiclePosition[] = [];
+// --- Health & Status ---
+app.get("/health", (_req, res) => res.json({ status: "ok" }));
+app.get("/api/status", (_req, res) => res.json(getStatus()));
 
-  try {
-    const config = resolveBodsConfig();
-    const { geometries, tripToRoute } = await getRealtimeLookups();
-    fetcher = () => fetchVehiclePositions(config, geometries, tripToRoute);
-    initialVehicles = await fetcher();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.warn(`Realtime vehicle feed unavailable (${message}). Using bundled sample data.`);
-    initialVehicles = await loadSampleVehicles();
-  }
+// --- Data Endpoints (now reflect reality — may be empty) ---
+app.get("/api/routes", (_req, res) => {
+  res.json(getRoutes()); // []
+});
 
-  const simulator = new VehicleSimulator(initialVehicles, fetcher);
-  registerRoutes(app, simulator);
+app.get("/api/stops", (_req, res) => {
+  res.json(getStops()); // []
+});
 
-  const server = http.createServer(app);
-  createWebSocketServer(server, simulator);
-  simulator.start(5000);
+// If you have a vehicles snapshot endpoint already, keep it as-is.
+// Otherwise you might have WS-only live updates.
 
-  server.listen(PORT, () => {
-    console.log(`TransitScope backend listening on port ${PORT}`);
-  });
+// --- Startup wiring & diagnostics ---
+const port = Number(process.env.PORT || 4000);
+const { BODS_API_KEY, BODS_BBOX } = process.env;
+
+const realtimeEnabled = !!BODS_API_KEY && !!BODS_BBOX;
+setStatus({ realtimeEnabled, usingSamples: false });
+
+if (!realtimeEnabled) {
+  const err =
+    !BODS_API_KEY && !BODS_BBOX
+      ? "Missing BODS_API_KEY and BODS_BBOX"
+      : !BODS_API_KEY
+      ? "Missing BODS_API_KEY"
+      : "Missing BODS_BBOX";
+  setStatus({ lastFetchError: err });
+  console.warn("[backend] Realtime disabled:", err);
+} else {
+  console.log("[backend] Realtime configured.");
+  // OPTIONAL: If you have a realtime loop, hook its success/error to the status:
+  // Example: in your fetch interval success handler call:
+  //   setStatus({ lastFetchAt: new Date().toISOString(), vehiclesCount: vehicles.length, lastFetchError: undefined });
+  // and in error handler call:
+  //   setStatus({ lastFetchError: err instanceof Error ? err.message : String(err) });
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
+app.listen(port, () => {
+  console.log(`Backend listening on :${port}`);
 });
