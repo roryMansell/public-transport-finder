@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import { loadRoutes, loadStops } from './dataStore.js';
+import { loadRoutes, loadStops, loadStopsForRoute } from './dataStore.js';
 import { VehicleSimulator } from './vehicleSimulator.js';
 import type { GeoJsonFeatureCollection, VehiclePosition } from './types.js';
 
@@ -19,12 +19,13 @@ export function registerRoutes(app: Express, simulator: VehicleSimulator) {
 
   app.get('/api/stops', async (req: Request, res: Response) => {
     const routeId = req.query.routeId as string | undefined;
-    const stops = await loadStops();
-    if (!routeId) {
+    if (routeId) {
+      const stops = await loadStopsForRoute(routeId);
       res.json(stops);
       return;
     }
-    res.json(stops.filter((stop) => stop.routeId === routeId));
+    const stops = await loadStops();
+    res.json(stops);
   });
 
   app.get('/api/snapshot', (_req: Request, res: Response) => {

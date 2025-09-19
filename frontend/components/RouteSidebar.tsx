@@ -134,10 +134,7 @@ export default function RouteSidebar({
         )}
       </div>
       <div className="p-4 border-t border-stone-200 text-xs text-stone-500 space-y-1">
-        <p>
-          Uses open data from TfGM and the Bus Open Data Service. This demo replays a simulated feed so you can run
-          everything offline.
-        </p>
+        <p>Live vehicle positions and routes are loaded directly from the Bus Open Data Service.</p>
         <p>
           Backend URL: <code className="bg-stone-100 px-1 py-0.5 rounded">{API_BASE_URL}</code>
         </p>

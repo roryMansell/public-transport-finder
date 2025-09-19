@@ -50,8 +50,21 @@ function defaultColorForRoute(routeId: string) {
 }
 
 function formatVehicleTitle(vehicle: VehiclePosition, route?: Route) {
-  const speed = Number.isFinite(vehicle.speedKph) ? `${Math.round(vehicle.speedKph)} km/h` : 'Speed unavailable';
-  return route ? `${route.name} • ${speed}` : `${vehicle.routeId} • ${speed}`;
+  const titleParts: string[] = [];
+  if (route) {
+    titleParts.push(route.name);
+  } else {
+    titleParts.push(vehicle.routeId);
+  }
+  if (Number.isFinite(vehicle.speedKph)) {
+    titleParts.push(`${Math.round(vehicle.speedKph)} km/h`);
+  } else {
+    titleParts.push('Speed unavailable');
+  }
+  if (typeof vehicle.progress === 'number' && Number.isFinite(vehicle.progress)) {
+    titleParts.push(`${Math.round(vehicle.progress * 100)}% along route`);
+  }
+  return titleParts.join(' • ');
 }
 
 export default function TransportMap({ routes, selectedMode, selectedRouteId }: TransportMapProps) {
@@ -129,36 +142,28 @@ export default function TransportMap({ routes, selectedMode, selectedRouteId }: 
   };
 
   const buildRouteLineFeatures = (): FeatureCollection<LineString, RouteLineProperties> => {
-    const grouped = new Map<string, Stop[]>();
-    for (const stop of stopsRef.current) {
-      const route = routesByIdRef.current.get(stop.routeId);
-      if (!route) continue;
-      if (filtersRef.current.mode !== 'all' && route.mode !== filtersRef.current.mode) continue;
-      if (!grouped.has(stop.routeId)) {
-        grouped.set(stop.routeId, []);
-      }
-      grouped.get(stop.routeId)!.push(stop);
-    }
-
     const features: Feature<LineString, RouteLineProperties>[] = [];
-    for (const [routeId, stops] of grouped.entries()) {
-      if (stops.length < 2) continue;
-      const route = routesByIdRef.current.get(routeId);
-      const coordinates = stops.map((stop) => [stop.longitude, stop.latitude] as [number, number]);
+    routesByIdRef.current.forEach((route, routeId) => {
+      if (filtersRef.current.mode !== 'all' && route.mode !== filtersRef.current.mode) {
+        return;
+      }
+      if (!route.shape || route.shape.length < 2) {
+        return;
+      }
       features.push({
         type: 'Feature',
         geometry: {
           type: 'LineString',
-          coordinates,
+          coordinates: route.shape,
         },
         properties: {
           routeId,
-          color: route?.color ?? defaultColorForRoute(routeId),
+          color: route.color ?? defaultColorForRoute(routeId),
           selected: Boolean(filtersRef.current.routeId && routeId === filtersRef.current.routeId),
-          name: route?.name ?? routeId,
+          name: route.name,
         },
       });
-    }
+    });
 
     return {
       type: 'FeatureCollection',
@@ -209,8 +214,11 @@ export default function TransportMap({ routes, selectedMode, selectedRouteId }: 
     const { routeId } = filtersRef.current;
     if (!routeId) return;
     const coordinates: [number, number][] = [];
+    const route = routesByIdRef.current.get(routeId);
     const stops = stopsRef.current.filter((stop) => stop.routeId === routeId);
-    if (stops.length > 0) {
+    if (route?.shape && route.shape.length > 0) {
+      coordinates.push(...route.shape);
+    } else if (stops.length > 0) {
       for (const stop of stops) {
         coordinates.push([stop.longitude, stop.latitude]);
       }

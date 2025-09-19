@@ -115,6 +115,10 @@ cd ../backend
 npm install
 npm run dev   # runs WebSocket + REST API server
 
+# Required environment
+# export BODS_API_KEY=your_api_key
+# export BODS_OPERATOR_ID=operator_ref   # e.g. 9 for Stagecoach Manchester
+
 # (Optional) Start Postgres + Grafana stack
 cd ../ops
 docker-compose up
