@@ -6,9 +6,7 @@ import type { VehiclePosition } from './types.js';
 import type { BodsConfig } from './bodsConfig.js';
 import type { RouteGeometry } from './geometry.js';
 import { projectPointOntoRoute } from './geometry.js';
-
-// ✅ status updates
-import { setStatus } from "./status.js";
+import { setStatus } from './status.js';
 
 function resolveTimestamp(vehicleTimestamp?: number | Long | null, headerTimestamp?: number | Long | null) {
   const timestamp = vehicleTimestamp ?? headerTimestamp ?? Math.floor(Date.now() / 1000);
@@ -19,9 +17,7 @@ function resolveTimestamp(vehicleTimestamp?: number | Long | null, headerTimesta
 }
 
 function resolveSpeed(speedMetersPerSecond?: number | null) {
-  if (typeof speedMetersPerSecond !== 'number') {
-    return NaN;
-  }
+  if (typeof speedMetersPerSecond !== 'number') return NaN;
   return speedMetersPerSecond * 3.6;
 }
 
@@ -32,13 +28,14 @@ export async function fetchVehiclePositions(
 ): Promise<VehiclePosition[]> {
   const vehicles: VehiclePosition[] = [];
   let hadAnySuccess = false;
+  let sawAnyEntities = false;
   let lastErrorMsg: string | undefined;
 
   for (const url of config.vehicleUrls) {
     try {
       const response = await fetch(url);
       if (!response.ok) {
-        const msg = `Failed to load vehicle positions from ${url}: ${response.status} ${response.statusText}`;
+        const msg = `Vehicle feed ${url} => ${response.status} ${response.statusText}`;
         console.error(msg);
         lastErrorMsg = msg;
         continue;
@@ -47,15 +44,17 @@ export async function fetchVehiclePositions(
       const buffer = Buffer.from(await response.arrayBuffer());
       const feed = transit_realtime.FeedMessage.decode(buffer);
 
-      for (const entity of feed.entity ?? []) {
+      const entities = feed.entity ?? [];
+      console.log(`[realtime] ${url} -> ${entities.length} entities`);
+      if (entities.length > 0) sawAnyEntities = true;
+
+      for (const entity of entities) {
         const vehicle = entity.vehicle;
         if (!vehicle) continue;
 
         const position = vehicle.position;
         const trip = vehicle.trip;
-        if (!position || typeof position.latitude !== 'number' || typeof position.longitude !== 'number') {
-          continue;
-        }
+        if (!position || typeof position.latitude !== 'number' || typeof position.longitude !== 'number') continue;
 
         const tripId = trip?.tripId ?? undefined;
         const routeId = trip?.routeId ?? (tripId ? tripToRoute.get(tripId) : undefined);
@@ -83,25 +82,30 @@ export async function fetchVehiclePositions(
       hadAnySuccess = true;
       lastErrorMsg = undefined; // at least one URL worked
     } catch (err) {
-      const msg = `Error fetching vehicle positions from ${url}: ${err instanceof Error ? err.message : String(err)}`;
+      const msg = `Error fetching ${url}: ${err instanceof Error ? err.message : String(err)}`;
       console.error(msg);
       lastErrorMsg = msg;
-      // continue to next URL
     }
   }
 
-  // ✅ Update backend status once per full polling cycle
+  // Update backend status once per cycle
   if (hadAnySuccess) {
-    setStatus({
-      lastFetchAt: new Date().toISOString(),
-      vehiclesCount: vehicles.length,
-      lastFetchError: undefined,
-    });
+    if (!sawAnyEntities) {
+      setStatus({
+        lastFetchAt: new Date().toISOString(),
+        vehiclesCount: 0,
+        lastFetchError:
+          'Realtime feed returned 0 vehicles. Check BODS_BBOX (lat/lon order & bounds) and API key/operator coverage.',
+      });
+    } else {
+      setStatus({
+        lastFetchAt: new Date().toISOString(),
+        vehiclesCount: vehicles.length,
+        lastFetchError: undefined,
+      });
+    }
   } else if (lastErrorMsg) {
-    setStatus({
-      lastFetchError: lastErrorMsg,
-      // keep vehiclesCount as-is; next success will refresh it
-    });
+    setStatus({ lastFetchError: lastErrorMsg });
   }
 
   return vehicles;
