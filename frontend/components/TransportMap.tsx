@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import maplibregl, { Map as MapLibreMap, Marker } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { getSnapshot, type VehiclePosition } from '../lib/api';
+import { API_BASE_URL, EXPLICIT_WS_URL } from '../lib/config';
 
 const TILE_STYLE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
@@ -13,12 +14,10 @@ interface MarkerState {
 }
 
 function resolveWebSocketUrl() {
-  const explicit = process.env.NEXT_PUBLIC_WS_URL;
-  if (explicit) {
-    return explicit;
+  if (EXPLICIT_WS_URL) {
+    return EXPLICIT_WS_URL;
   }
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
-  return apiBase.replace(/^http/, 'ws').replace(/\/?$/, '') + '/live';
+  return API_BASE_URL.replace(/^http/, 'ws').replace(/\/?$/, '') + '/live';
 }
 
 function createMarker(vehicle: VehiclePosition) {
