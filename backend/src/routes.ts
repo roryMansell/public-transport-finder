@@ -1,57 +1,27 @@
-import type { Express, Request, Response } from 'express';
-import { loadRoutes, loadStops, loadStopsForRoute } from './dataStore.js';
-import { VehicleSimulator } from './vehicleSimulator.js';
-import type { GeoJsonFeatureCollection, VehiclePosition } from './types.js';
+// backend/src/routes.ts
+import type express from "express";
+import { getRoutes, getStops } from "./dataStore.js";
+import { getStatus } from "./status.js";
 
-function geoJsonToVehicles(snapshot: GeoJsonFeatureCollection): VehiclePosition[] {
-  return snapshot.features.map((feature) => ({
-    ...feature.properties,
-    latitude: feature.geometry.coordinates[1],
-    longitude: feature.geometry.coordinates[0],
-  }));
-}
+export function registerRoutes(app: express.Express) {
+  // Simple health
+  app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
-export function registerRoutes(app: Express, simulator: VehicleSimulator) {
-  app.get('/api/routes', async (_req: Request, res: Response) => {
-    const routes = await loadRoutes();
-    res.json(routes);
+  // Diagnostics for the frontend badge/overlay
+  app.get("/api/status", (_req, res) => {
+    res.json(getStatus());
   });
 
-  app.get('/api/stops', async (req: Request, res: Response) => {
-    const routeId = req.query.routeId as string | undefined;
-    if (routeId) {
-      const stops = await loadStopsForRoute(routeId);
-      res.json(stops);
-      return;
-    }
-    const stops = await loadStops();
-    res.json(stops);
+  // Real endpoints (may be empty arrays until you load GTFS)
+  app.get("/api/routes", (_req, res) => {
+    res.json(getRoutes());
   });
 
-  app.get('/api/snapshot', (_req: Request, res: Response) => {
-    const vehicles = simulator.getSnapshot();
-    const payload: GeoJsonFeatureCollection = {
-      type: 'FeatureCollection',
-      features: vehicles.map((vehicle) => ({
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: [vehicle.longitude, vehicle.latitude],
-        },
-        properties: vehicle,
-      })),
-    };
-    res.json(payload);
+  app.get("/api/stops", (_req, res) => {
+    res.json(getStops());
   });
 
-  app.post('/admin/load', (req: Request, res: Response) => {
-    const body = req.body as GeoJsonFeatureCollection | undefined;
-    if (!body || body.type !== 'FeatureCollection') {
-      res.status(400).json({ error: 'Expected GeoJSON FeatureCollection' });
-      return;
-    }
-    const vehicles = geoJsonToVehicles(body);
-    simulator.loadSnapshot(vehicles);
-    res.json({ status: 'ok', vehicles: vehicles.length });
-  });
+  // If you previously had /api/routes/:routeId/stops using loadStopsForRoute,
+  // you can add an equivalent using getStops() + filter by routeId once your
+  // Stop type includes a route relationship.
 }
