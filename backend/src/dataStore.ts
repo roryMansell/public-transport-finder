@@ -1,5 +1,5 @@
 // backend/src/dataStore.ts
-import { setStatus } from "./status";
+import { setStatus } from "./status.js";
 
 // If you already have central types, feel free to replace these with your imports.
 export type Route = {
