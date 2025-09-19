@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl, { GeoJSONSource, Map as MapLibreMap, Marker } from 'maplibre-gl';
 import type { Feature, FeatureCollection, LineString, Point } from 'geojson';
-import 'maplibre-gl/dist/maplibre-gl.css';
 import { getSnapshot, getStops, type Route, type Stop, type VehiclePosition } from '../lib/api';
 import { API_BASE_URL, EXPLICIT_WS_URL } from '../lib/config';
 
