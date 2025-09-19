@@ -1,7 +1,7 @@
 import http from 'node:http';
 import express from 'express';
 import cors from 'cors';
-import { getRealtimeLookups } from './dataStore.js';
+import { getRealtimeLookups, loadSampleVehicles } from './dataStore.js';
 import { VehicleSimulator } from './vehicleSimulator.js';
 import { registerRoutes } from './routes.js';
 import { createWebSocketServer } from './websocketServer.js';
@@ -19,15 +19,18 @@ async function main() {
     res.json({ status: 'ok' });
   });
 
-  const config = resolveBodsConfig();
-  const { geometries, tripToRoute } = await getRealtimeLookups();
-
-  const fetcher = () => fetchVehiclePositions(config, geometries, tripToRoute);
+  let fetcher: (() => Promise<VehiclePosition[]>) | undefined;
   let initialVehicles: VehiclePosition[] = [];
+
   try {
+    const config = resolveBodsConfig();
+    const { geometries, tripToRoute } = await getRealtimeLookups();
+    fetcher = () => fetchVehiclePositions(config, geometries, tripToRoute);
     initialVehicles = await fetcher();
   } catch (error) {
-    console.error('Failed to fetch initial vehicle positions', error);
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Realtime vehicle feed unavailable (${message}). Using bundled sample data.`);
+    initialVehicles = await loadSampleVehicles();
   }
 
   const simulator = new VehicleSimulator(initialVehicles, fetcher);

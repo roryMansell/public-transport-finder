@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from 'next/dynamic';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import RouteSidebar from '../components/RouteSidebar';
 import { getRoutes, type Route } from '../lib/api';
 
@@ -61,44 +61,42 @@ function useRoutes() {
   );
 }
 
-function useModeAwareRouteSelection(routes: Route[]) {
-  const [selectedMode, setSelectedMode] = useState<ModeFilter>('all');
-  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
-
-  const handleModeChange = (mode: ModeFilter) => {
-    setSelectedMode(mode);
-    setSelectedRouteId((current) => {
-      if (!current) return current;
-      const route = routes.find((item) => item.id === current);
-      if (!route) return null;
-      if (mode === 'all' || route.mode === mode) {
-        return current;
-      }
-      return null;
-    });
-  };
-
-  const handleRouteSelect = (routeId: string | null) => {
-    setSelectedRouteId(routeId);
-    if (routeId) {
-      const route = routes.find((item) => item.id === routeId);
-      if (route && selectedMode !== 'all' && route.mode !== selectedMode) {
-        setSelectedMode(route.mode);
-      }
-    }
-  };
-
-  return {
-    selectedMode,
-    selectedRouteId,
-    setSelectedMode: handleModeChange,
-    setSelectedRouteId: handleRouteSelect,
-  };
-}
-
 export default function HomePage() {
   const { routes, loading, error } = useRoutes();
-  const { selectedMode, selectedRouteId, setSelectedMode, setSelectedRouteId } = useModeAwareRouteSelection(routes);
+  const [selectedMode, setSelectedMode] = useState<ModeFilter>('bus');
+  const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setSelectedRouteIds((current) => current.filter((id) => routes.some((route) => route.id === id)));
+  }, [routes]);
+
+  const handleModeChange = useCallback(
+    (mode: ModeFilter) => {
+      setSelectedMode(mode);
+      if (mode === 'all') return;
+      const allowed = new Set(routes.filter((route) => route.mode === mode).map((route) => route.id));
+      setSelectedRouteIds((current) => current.filter((id) => allowed.has(id)));
+    },
+    [routes],
+  );
+
+  const handleRouteToggle = useCallback(
+    (routeId: string) => {
+      const route = routes.find((item) => item.id === routeId);
+      if (!route) return;
+      const isSelected = selectedRouteIds.includes(routeId);
+      setSelectedRouteIds((current) => {
+        if (current.includes(routeId)) {
+          return current.filter((id) => id !== routeId);
+        }
+        return [...current, routeId];
+      });
+      if (!isSelected && selectedMode !== 'all' && route.mode !== selectedMode) {
+        handleModeChange(route.mode);
+      }
+    },
+    [routes, selectedMode, selectedRouteIds, handleModeChange],
+  );
 
   return (
     <main className="flex flex-1 flex-col md:flex-row">
@@ -108,14 +106,14 @@ export default function HomePage() {
           loading={loading}
           error={error}
           selectedMode={selectedMode}
-          onModeChange={setSelectedMode}
-          selectedRouteId={selectedRouteId}
-          onRouteSelect={setSelectedRouteId}
+          onModeChange={handleModeChange}
+          selectedRouteIds={selectedRouteIds}
+          onRouteToggle={handleRouteToggle}
         />
       </div>
       <div className="flex-1 relative min-h-[50vh]">
         <Suspense fallback={<div className="p-4">Loading map…</div>}>
-          <TransportMap routes={routes} selectedMode={selectedMode} selectedRouteId={selectedRouteId} />
+          <TransportMap routes={routes} selectedMode={selectedMode} selectedRouteIds={selectedRouteIds} />
         </Suspense>
       </div>
     </main>

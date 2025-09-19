@@ -1,20 +1,29 @@
 [
   {
     "id": "vehicle-142-1",
-    "routeId": "bus-1",
-    "latitude": 53.4705,
-    "longitude": -2.2374,
-    "bearing": 180,
-    "speedKph": 32,
+    "routeId": "bus-142",
+    "latitude": 53.4589,
+    "longitude": -2.2307,
+    "bearing": 175,
+    "speedKph": 29,
     "updatedAt": "2024-01-01T12:00:00.000Z"
   },
   {
-    "id": "vehicle-tram-1",
-    "routeId": "tram-1",
-    "latitude": 53.515,
-    "longitude": -2.279,
-    "bearing": 45,
-    "speedKph": 40,
-    "updatedAt": "2024-01-01T12:00:00.000Z"
+    "id": "vehicle-142-2",
+    "routeId": "bus-142",
+    "latitude": 53.4426,
+    "longitude": -2.2254,
+    "bearing": 182,
+    "speedKph": 24,
+    "updatedAt": "2024-01-01T12:00:15.000Z"
+  },
+  {
+    "id": "vehicle-43-1",
+    "routeId": "bus-43",
+    "latitude": 53.4181,
+    "longitude": -2.2395,
+    "bearing": 190,
+    "speedKph": 33,
+    "updatedAt": "2024-01-01T12:00:30.000Z"
   }
 ]
