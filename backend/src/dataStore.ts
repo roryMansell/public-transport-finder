@@ -52,11 +52,9 @@ interface RawShapeRow {
 
 let cachedTransitData: Promise<TransitData> | null = null;
 
-async function downloadStaticFeed(config: BodsConfig): Promise<AdmZip> {
-  const response = await fetch(new URL(config.staticUrl), {
-    headers: {
-      'x-api-key': config.apiKey,
-    },
+async function downloadStaticFeed(staticUrl: string, apiKey: string): Promise<AdmZip> {
+  const response = await fetch(new URL(staticUrl), {
+    headers: { 'x-api-key': apiKey },
   });
   if (!response.ok) {
     throw new Error(`Failed to download GTFS feed: ${response.status} ${response.statusText}`);
@@ -64,6 +62,7 @@ async function downloadStaticFeed(config: BodsConfig): Promise<AdmZip> {
   const arrayBuffer = await response.arrayBuffer();
   return new AdmZip(Buffer.from(arrayBuffer));
 }
+
 
 function parseCsv<T>(zip: AdmZip, entryName: string): T[] {
   const entry = zip.getEntry(entryName);
@@ -167,21 +166,21 @@ function buildRouteShape(shapeId: string | undefined, shapesById: Map<string, Ar
 
 async function computeTransitData(): Promise<TransitData> {
   const config = resolveBodsConfig();
-  const zip = await downloadStaticFeed(config);
 
-  const rawRoutes = parseCsv<RawRouteRow>(zip, 'routes.txt');
-  const rawTrips = parseCsv<RawTripRow>(zip, 'trips.txt');
-  const rawStops = parseCsv<RawStopRow>(zip, 'stops.txt');
-  const rawStopTimes = parseCsv<RawStopTimeRow>(zip, 'stop_times.txt');
-  const rawShapes = parseCsv<RawShapeRow>(zip, 'shapes.txt');
-
-  const stopTimesByTrip = new Map<string, RawStopTimeRow[]>();
-  for (const row of rawStopTimes) {
-    if (!stopTimesByTrip.has(row.trip_id)) {
-      stopTimesByTrip.set(row.trip_id, []);
-    }
-    stopTimesByTrip.get(row.trip_id)!.push(row);
+  // If we're in "all operators" / bbox mode, there may be no static feed.
+  if (!config.staticUrl) {
+    console.warn('No staticUrl provided — skipping static GTFS parse (all-operators mode).');
+    return {
+      routes: [],
+      stops: [],
+      geometries: new Map<string, RouteGeometry>(),
+      tripToRoute: new Map<string, string>(),
+    };
   }
+
+  // We DO have a static feed → download & parse it
+  const zip = await downloadStaticFeed(config.staticUrl, config.apiKey);
+
 
   const shapesById = new Map<string, Array<{ sequence: number; coord: [number, number] }>>();
   for (const row of rawShapes) {
