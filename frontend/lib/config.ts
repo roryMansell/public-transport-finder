@@ -1,16 +1,15 @@
+// frontend/lib/config.ts
+
 const DEFAULT_API_BASE_URL = 'http://localhost:4000';
 
-function readEnv(name: string) {
-  const value = process.env[name];
-  if (typeof value !== 'string') {
-    return undefined;
-  }
+// ✅ Direct references (no dynamic indexing)
+const apiFromEnv = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+const wsFromEnv  = process.env.NEXT_PUBLIC_WS_URL?.trim();
 
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
+export const API_BASE_URL =
+  apiFromEnv && apiFromEnv.length > 0 ? apiFromEnv : DEFAULT_API_BASE_URL;
 
-export const API_BASE_URL = readEnv('NEXT_PUBLIC_API_BASE_URL') ?? DEFAULT_API_BASE_URL;
-export const EXPLICIT_WS_URL = readEnv('NEXT_PUBLIC_WS_URL');
+export const EXPLICIT_WS_URL =
+  wsFromEnv && wsFromEnv.length > 0 ? wsFromEnv : undefined;
 
-export { readEnv };
+// If nothing else uses readEnv, you can delete it and stop exporting it.
