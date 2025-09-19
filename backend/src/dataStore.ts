@@ -38,3 +38,4 @@ export function loadStopsFromGTFS(newStops: Stop[]) {
   stops = Array.isArray(newStops) ? newStops : [];
   setStatus({ stopsCount: stops.length, usingSamples: false });
 }
+
