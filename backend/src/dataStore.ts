@@ -52,19 +52,26 @@ interface RawShapeRow {
 
 let cachedTransitData: Promise<TransitData> | null = null;
 
-/* ------------------------- helpers ------------------------- */
+/* ------------------------- helpers (pure) ------------------------- */
 
 function parseCsv<T>(zip: AdmZip, entryName: string): T[] {
   const entry = zip.getEntry(entryName);
-  if (!entry) throw new Error(`GTFS feed is missing required file: ${entryName}`);
+  if (!entry) {
+    throw new Error(`GTFS feed is missing required file: ${entryName}`);
+  }
   const content = entry.getData().toString('utf-8');
-  return parse(content, { columns: true, skip_empty_lines: true, trim: true }) as T[];
+  return parse(content, {
+    columns: true,
+    skip_empty_lines: true,
+    trim: true,
+  }) as T[];
 }
 
 function normaliseColor(input?: string) {
   if (!input) return '#005CAB';
   const value = input.startsWith('#') ? input : `#${input}`;
-  return /^#([0-9a-fA-F]{6})$/.test(value) ? value : '#005CAB';
+  if (/^#([0-9a-fA-F]{6})$/.test(value)) return value;
+  return '#005CAB';
 }
 
 function resolveMode(routeType?: string): Route['mode'] {
@@ -152,38 +159,39 @@ function buildRouteShape(
   return ordered.map((row) => row.coord);
 }
 
-function inBbox(lat: number, lon: number, bbox: string | undefined): boolean {
-  if (!bbox) return true;
-  const [minLat, maxLat, minLon, maxLon] = bbox.split(',').map(Number);
-  return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon;
-}
-
-/* ----------------- operator + GTFS fetching ---------------- */
-
-async function fetchOperatorIds(apiKey: string): Promise<string[]> {
-  const resp = await fetch(`https://data.bus-data.dft.gov.uk/api/v1/gtfsoperators/?api_key=${apiKey}`);
-  if (!resp.ok) throw new Error(`Failed to list operators: ${resp.status} ${resp.statusText}`);
-  const data = await resp.json();
-  return (data.operators ?? []).map((op: any) => op.operatorRef);
-}
+/* ------------------ static GTFS download/compute ------------------ */
 
 async function downloadStaticFeed(staticUrl: string, apiKey: string): Promise<AdmZip> {
-  const response = await fetch(new URL(staticUrl), { headers: { 'x-api-key': apiKey } });
-  if (!response.ok) throw new Error(`Failed to download GTFS feed: ${response.status} ${response.statusText}`);
+  const response = await fetch(new URL(staticUrl), {
+    headers: { 'x-api-key': apiKey },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to download GTFS feed: ${response.status} ${response.statusText}`);
+  }
   const arrayBuffer = await response.arrayBuffer();
   return new AdmZip(Buffer.from(arrayBuffer));
 }
 
-/* ------------------ computeTransitData -------------------- */
-
 async function computeTransitData(): Promise<TransitData> {
   const config = resolveBodsConfig();
 
-  let operatorIds: string[];
-  if (config.operatorId) {
-    operatorIds = [config.operatorId];
-  } else {
-    operatorIds = await fetchOperatorIds(config.apiKey);
+  // Determine which operators to include for STATIC GTFS
+  // Priority: BODS_OPERATOR_IDS (comma separated) -> BODS_OPERATOR_ID (single)
+  const operatorIds =
+    (config.operatorIds && config.operatorIds.length > 0)
+      ? config.operatorIds
+      : (config.operatorId ? [config.operatorId] : []);
+
+  if (operatorIds.length === 0) {
+    console.warn(
+      'No operator IDs provided for static GTFS. Set BODS_OPERATOR_IDS="OP1,OP2,..." or BODS_OPERATOR_ID.'
+    );
+    return {
+      routes: [],
+      stops: [],
+      geometries: new Map<string, RouteGeometry>(),
+      tripToRoute: new Map<string, string>(),
+    };
   }
 
   const routes: Route[] = [];
@@ -193,7 +201,9 @@ async function computeTransitData(): Promise<TransitData> {
 
   for (const operatorId of operatorIds) {
     try {
-      const staticUrl = `https://data.bus-data.dft.gov.uk/gtfs/feed/${encodeURIComponent(operatorId)}/latest/download`;
+      const staticUrl = `https://data.bus-data.dft.gov.uk/gtfs/feed/${encodeURIComponent(
+        operatorId
+      )}/latest/download`;
       const zip = await downloadStaticFeed(staticUrl, config.apiKey);
 
       const rawRoutes = parseCsv<RawRouteRow>(zip, 'routes.txt');
@@ -229,7 +239,11 @@ async function computeTransitData(): Promise<TransitData> {
         const prefixedRouteId = `${operatorId}:${trip.route_id}`;
         tripToRoute.set(prefixedTripId, prefixedRouteId);
         if (!tripsByRoute.has(prefixedRouteId)) tripsByRoute.set(prefixedRouteId, []);
-        tripsByRoute.get(prefixedRouteId)!.push({ ...trip, trip_id: prefixedTripId, route_id: prefixedRouteId });
+        tripsByRoute.get(prefixedRouteId)!.push({
+          ...trip,
+          trip_id: prefixedTripId,
+          route_id: prefixedRouteId,
+        });
       }
 
       for (const route of rawRoutes) {
@@ -248,17 +262,9 @@ async function computeTransitData(): Promise<TransitData> {
           shape,
         };
 
-        // collect stops
-        let routeStops: Stop[] = [];
-        if (representativeTrip) {
-          routeStops = buildStopsForRoute(routeId, representativeTrip, stopTimesByTrip, stopsById);
-        }
-
-        // bbox filter: only keep the route if it has at least one stop inside the bbox
-        if (!config.operatorId && config.bbox) {
-          const inside = routeStops.some((s) => inBbox(s.latitude, s.longitude, config.bbox));
-          if (!inside) continue;
-        }
+        const routeStops = representativeTrip
+          ? buildStopsForRoute(routeId, representativeTrip, stopTimesByTrip, stopsById)
+          : [];
 
         routes.push(routeObj);
         stops.push(...routeStops);
