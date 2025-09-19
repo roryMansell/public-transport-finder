@@ -1,5 +1,5 @@
-import { transit_realtime } from 'gtfs-realtime-bindings';
-import Long from 'long';
+import gtfs from 'gtfs-realtime-bindings';
+const { transit_realtime } = gtfs;import Long from 'long';
 import type { VehiclePosition } from './types.js';
 import type { BodsConfig } from './bodsConfig.js';
 import type { RouteGeometry } from './geometry.js';
