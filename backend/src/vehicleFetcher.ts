@@ -10,9 +10,7 @@ import { setStatus } from './status.js';
 
 function resolveTimestamp(vehicleTimestamp?: number | Long | null, headerTimestamp?: number | Long | null) {
   const timestamp = vehicleTimestamp ?? headerTimestamp ?? Math.floor(Date.now() / 1000);
-  if (typeof timestamp === 'number') {
-    return new Date(timestamp * 1000).toISOString();
-  }
+  if (typeof timestamp === 'number') return new Date(timestamp * 1000).toISOString();
   return new Date(timestamp.toNumber() * 1000).toISOString();
 }
 
@@ -33,6 +31,7 @@ export async function fetchVehiclePositions(
 
   for (const url of config.vehicleUrls) {
     try {
+      console.log('[realtime] fetching', url);
       const response = await fetch(url);
       if (!response.ok) {
         const msg = `Vehicle feed ${url} => ${response.status} ${response.statusText}`;
@@ -43,7 +42,6 @@ export async function fetchVehiclePositions(
 
       const buffer = Buffer.from(await response.arrayBuffer());
       const feed = transit_realtime.FeedMessage.decode(buffer);
-
       const entities = feed.entity ?? [];
       console.log(`[realtime] ${url} -> ${entities.length} entities`);
       if (entities.length > 0) sawAnyEntities = true;
@@ -54,13 +52,19 @@ export async function fetchVehiclePositions(
 
         const position = vehicle.position;
         const trip = vehicle.trip;
-        if (!position || typeof position.latitude !== 'number' || typeof position.longitude !== 'number') continue;
+        if (!position || typeof position.latitude !== 'number' || typeof position.longitude !== 'number') {
+          continue;
+        }
 
         const tripId = trip?.tripId ?? undefined;
-        const routeId = trip?.routeId ?? (tripId ? tripToRoute.get(tripId) : undefined);
-        if (!routeId) continue;
 
-        const geometry = geometries.get(routeId);
+        // ✅ Allow unknown routeId (don’t drop the vehicle)
+        const routeId =
+          trip?.routeId ??
+          (tripId ? tripToRoute.get(tripId) : undefined) ??
+          'unknown';
+
+        const geometry = routeId !== 'unknown' ? geometries.get(routeId) : undefined;
         const projection = geometry ? projectPointOntoRoute([position.longitude, position.latitude], geometry) : null;
 
         const bearing = typeof position.bearing === 'number' ? position.bearing : projection?.bearing ?? 0;
@@ -69,7 +73,7 @@ export async function fetchVehiclePositions(
 
         vehicles.push({
           id: vehicle.vehicle?.id ?? entity.id ?? `${routeId}-${vehicles.length}`,
-          routeId,
+          routeId, // may be "unknown"
           latitude,
           longitude,
           bearing,
@@ -80,7 +84,7 @@ export async function fetchVehiclePositions(
       }
 
       hadAnySuccess = true;
-      lastErrorMsg = undefined; // at least one URL worked
+      lastErrorMsg = undefined;
     } catch (err) {
       const msg = `Error fetching ${url}: ${err instanceof Error ? err.message : String(err)}`;
       console.error(msg);
@@ -88,22 +92,13 @@ export async function fetchVehiclePositions(
     }
   }
 
-  // Update backend status once per cycle
+  // Update diagnostics
   if (hadAnySuccess) {
-    if (!sawAnyEntities) {
-      setStatus({
-        lastFetchAt: new Date().toISOString(),
-        vehiclesCount: 0,
-        lastFetchError:
-          'Realtime feed returned 0 vehicles. Check BODS_BBOX (lat/lon order & bounds) and API key/operator coverage.',
-      });
-    } else {
-      setStatus({
-        lastFetchAt: new Date().toISOString(),
-        vehiclesCount: vehicles.length,
-        lastFetchError: undefined,
-      });
-    }
+    setStatus({
+      lastFetchAt: new Date().toISOString(),
+      vehiclesCount: vehicles.length,
+      lastFetchError: (!sawAnyEntities && 'Realtime feed returned 0 entities for this BBOX') || undefined,
+    });
   } else if (lastErrorMsg) {
     setStatus({ lastFetchError: lastErrorMsg });
   }

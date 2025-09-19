@@ -58,16 +58,39 @@ export default function TransportMap({ routes, selectedMode, selectedRouteIds }:
   const buildVehicleFC = useCallback(
     (vehicles: VehiclePosition[]): FeatureCollection<Point> => {
       const selection = new Set(filtersRef.current.routeIds);
+      const modeFilter = filtersRef.current.mode;
+
+      // ✅ Realtime-only: if no routes are loaded at all, show ALL vehicles
+      if (routesByIdRef.current.size === 0) {
+        return {
+          type: 'FeatureCollection',
+          features: vehicles.map((vehicle) => ({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [vehicle.longitude, vehicle.latitude] },
+            properties: {
+              id: vehicle.id,
+              routeId: vehicle.routeId,
+              speedKph: Number.isFinite(vehicle.speedKph) ? Math.round(vehicle.speedKph!) : null,
+              color: defaultColorForRoute(vehicle.routeId),
+              selected: true,
+              dimmed: false,
+            },
+          })),
+        };
+      }
+
+      // With routes loaded: keep existing selection behavior
       if (selection.size === 0) {
         return { type: 'FeatureCollection', features: [] };
       }
-      const modeFilter = filtersRef.current.mode;
+
       const filtered = vehicles.filter((vehicle) => {
         if (!selection.has(vehicle.routeId)) return false;
         if (modeFilter === 'all') return true;
         const route = routesByIdRef.current.get(vehicle.routeId);
         return route?.mode === modeFilter;
       });
+
       return {
         type: 'FeatureCollection',
         features: filtered.map((vehicle) => ({
@@ -160,7 +183,7 @@ export default function TransportMap({ routes, selectedMode, selectedRouteIds }:
       if (route?.shape && route.shape.length > 0) {
         coordinates.push(...route.shape);
         continue;
-      }
+        }
       const stops = stopsRef.current.filter((stop) => stop.routeId === routeId);
       coordinates.push(...stops.map((stop) => [stop.longitude, stop.latitude] as [number, number]));
     }
@@ -268,7 +291,7 @@ export default function TransportMap({ routes, selectedMode, selectedRouteIds }:
       try {
         const snapshot = await getSnapshot();
         if (!isMounted) return;
-        const vehicles = snapshot.features.map((feature) => feature.properties);
+        const vehicles = snapshot.features.map((feature) => feature.properties as VehiclePosition);
         vehiclesRef.current = vehicles;
         (map.getSource('vehicles') as GeoJSONSource).setData(buildVehicleFC(vehicles));
         setVehicleError(null);
@@ -343,7 +366,8 @@ export default function TransportMap({ routes, selectedMode, selectedRouteIds }:
   return (
     <div className="relative h-full">
       <div ref={containerRef} className="absolute inset-0" />
-      {!hasSelection ? (
+      {/* ✅ Only show the selection overlay if routes actually exist */}
+      {routesByIdRef.current.size > 0 && !hasSelection ? (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="bg-white/90 backdrop-blur rounded border border-stone-200 px-4 py-3 text-sm text-stone-700 shadow">
             Select one or more routes to display live buses.
