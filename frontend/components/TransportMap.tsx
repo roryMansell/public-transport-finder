@@ -13,7 +13,7 @@ const DEFAULT_ZOOM = 11;
 interface TransportMapProps {
   routes: Route[];
   selectedMode: 'all' | Route['mode'];
-  selectedRouteId: string | null;
+  selectedRouteIds: string[];
 }
 
 interface StopProperties {
@@ -40,92 +40,106 @@ function defaultColorForRoute(routeId: string) {
   return routeId.startsWith('tram') ? '#FFCD00' : '#005CAB';
 }
 
-export default function TransportMap({ routes, selectedMode, selectedRouteId }: TransportMapProps) {
+export default function TransportMap({ routes, selectedMode, selectedRouteIds }: TransportMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const mapLoadedRef = useRef(false);
   const stopsRef = useRef<Stop[]>([]);
+  const vehiclesRef = useRef<VehiclePosition[]>([]);
   const routesByIdRef = useRef<Map<string, Route>>(new Map());
-  const filtersRef = useRef({ mode: selectedMode, routeId: selectedRouteId });
+  const filtersRef = useRef({ mode: selectedMode, routeIds: selectedRouteIds });
   const [vehicleError, setVehicleError] = useState<string | null>(null);
   const [stopsError, setStopsError] = useState<string | null>(null);
 
   const routeLookup = useMemo(() => new Map(routes.map((r) => [r.id, r])), [routes]);
   routesByIdRef.current = routeLookup;
-  filtersRef.current = { mode: selectedMode, routeId: selectedRouteId };
-
-  // --- GeoJSON builders ---
+  filtersRef.current = { mode: selectedMode, routeIds: selectedRouteIds };
 
   const buildVehicleFC = useCallback(
     (vehicles: VehiclePosition[]): FeatureCollection<Point> => {
-      // mode filter (optional)
-      const filtered = vehicles.filter((v) => {
-        if (filtersRef.current.mode === 'all') return true;
-        const r = routesByIdRef.current.get(v.routeId);
-        return r?.mode === filtersRef.current.mode;
+      const selection = new Set(filtersRef.current.routeIds);
+      if (selection.size === 0) {
+        return { type: 'FeatureCollection', features: [] };
+      }
+      const modeFilter = filtersRef.current.mode;
+      const filtered = vehicles.filter((vehicle) => {
+        if (!selection.has(vehicle.routeId)) return false;
+        if (modeFilter === 'all') return true;
+        const route = routesByIdRef.current.get(vehicle.routeId);
+        return route?.mode === modeFilter;
       });
       return {
         type: 'FeatureCollection',
-        features: filtered.map((v) => ({
+        features: filtered.map((vehicle) => ({
           type: 'Feature',
-          geometry: { type: 'Point', coordinates: [v.longitude, v.latitude] },
+          geometry: { type: 'Point', coordinates: [vehicle.longitude, vehicle.latitude] },
           properties: {
-            id: v.id,
-            routeId: v.routeId,
-            speedKph: Number.isFinite(v.speedKph) ? Math.round(v.speedKph!) : null,
-            color: routesByIdRef.current.get(v.routeId)?.color ?? defaultColorForRoute(v.routeId),
-            selected: filtersRef.current.routeId ? v.routeId === filtersRef.current.routeId : false,
-            dimmed: filtersRef.current.routeId ? v.routeId !== filtersRef.current.routeId : false,
+            id: vehicle.id,
+            routeId: vehicle.routeId,
+            speedKph: Number.isFinite(vehicle.speedKph) ? Math.round(vehicle.speedKph!) : null,
+            color: routesByIdRef.current.get(vehicle.routeId)?.color ?? defaultColorForRoute(vehicle.routeId),
+            selected: true,
+            dimmed: false,
           },
         })),
       };
     },
-    []
+    [],
   );
 
   const buildStopFeatures = useCallback((): FeatureCollection<Point, StopProperties> => {
-    const sel = filtersRef.current.routeId;
-    if (!sel) return { type: 'FeatureCollection', features: [] };
-    const route = routesByIdRef.current.get(sel);
-    const features: Feature<Point, StopProperties>[] = stopsRef.current
-      .filter((s) => s.routeId === sel)
-      .map((s) => ({
+    const selection = new Set(filtersRef.current.routeIds);
+    if (selection.size === 0) {
+      return { type: 'FeatureCollection', features: [] };
+    }
+    const features: Feature<Point, StopProperties>[] = [];
+    for (const stop of stopsRef.current) {
+      if (!selection.has(stop.routeId)) continue;
+      const route = routesByIdRef.current.get(stop.routeId);
+      features.push({
         type: 'Feature',
-        geometry: { type: 'Point', coordinates: [s.longitude, s.latitude] },
+        geometry: { type: 'Point', coordinates: [stop.longitude, stop.latitude] },
         properties: {
-          id: s.id,
-          name: s.name,
-          routeId: s.routeId,
-          color: route?.color ?? defaultColorForRoute(s.routeId),
+          id: stop.id,
+          name: stop.name,
+          routeId: stop.routeId,
+          color: route?.color ?? defaultColorForRoute(stop.routeId),
           selected: true,
         },
-      }));
+      });
+    }
     return { type: 'FeatureCollection', features };
   }, []);
 
   const buildRouteLineFeatures = useCallback((): FeatureCollection<LineString, RouteLineProperties> => {
-    const sel = filtersRef.current.routeId;
-    if (!sel) return { type: 'FeatureCollection', features: [] };
-    const route = routesByIdRef.current.get(sel);
-    if (!route?.shape || route.shape.length < 2) return { type: 'FeatureCollection', features: [] };
-    return {
-      type: 'FeatureCollection',
-      features: [
-        {
-          type: 'Feature',
-          geometry: { type: 'LineString', coordinates: route.shape },
-          properties: {
-            routeId: sel,
-            color: route.color ?? defaultColorForRoute(sel),
-            selected: true,
-            name: route.name,
-          },
+    const selection = new Set(filtersRef.current.routeIds);
+    if (selection.size === 0) {
+      return { type: 'FeatureCollection', features: [] };
+    }
+    const features: Feature<LineString, RouteLineProperties>[] = [];
+    for (const routeId of selection) {
+      const route = routesByIdRef.current.get(routeId);
+      if (!route?.shape || route.shape.length < 2) continue;
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: route.shape },
+        properties: {
+          routeId,
+          color: route.color ?? defaultColorForRoute(routeId),
+          selected: true,
+          name: route.name,
         },
-      ],
-    };
+      });
+    }
+    return { type: 'FeatureCollection', features };
   }, []);
 
-  // --- Update sources ---
+  const updateVehicleLayer = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+    const source = map.getSource('vehicles') as GeoJSONSource | undefined;
+    source?.setData(buildVehicleFC(vehiclesRef.current));
+  }, [buildVehicleFC]);
 
   const updateStopsAndRouteLayers = useCallback(() => {
     const map = mapRef.current;
@@ -134,22 +148,32 @@ export default function TransportMap({ routes, selectedMode, selectedRouteId }: 
     (map.getSource('route-lines') as GeoJSONSource | undefined)?.setData(buildRouteLineFeatures());
   }, [buildStopFeatures, buildRouteLineFeatures]);
 
-  const focusSelectedRoute = useCallback(() => {
+  const focusSelectedRoutes = useCallback(() => {
     const map = mapRef.current;
     if (!map || !mapLoadedRef.current) return;
-    const sel = filtersRef.current.routeId;
-    if (!sel) return;
-    const route = routesByIdRef.current.get(sel);
-    const coords: [number, number][] = route?.shape ?? [];
-    if (coords.length === 0) return;
-    const bounds = coords.slice(1).reduce(
-      (acc, c) => acc.extend(c),
-      new maplibregl.LngLatBounds(coords[0], coords[0])
+    const selection = filtersRef.current.routeIds;
+    if (selection.length === 0) return;
+
+    const coordinates: Array<[number, number]> = [];
+    for (const routeId of selection) {
+      const route = routesByIdRef.current.get(routeId);
+      if (route?.shape && route.shape.length > 0) {
+        coordinates.push(...route.shape);
+        continue;
+      }
+      const stops = stopsRef.current.filter((stop) => stop.routeId === routeId);
+      coordinates.push(...stops.map((stop) => [stop.longitude, stop.latitude] as [number, number]));
+    }
+
+    if (coordinates.length === 0) return;
+
+    const bounds = coordinates.slice(1).reduce(
+      (acc, coord) => acc.extend(coord),
+      new maplibregl.LngLatBounds(coordinates[0], coordinates[0]),
     );
+
     map.fitBounds(bounds, { padding: 80, maxZoom: 14, duration: 700 });
   }, []);
-
-  // --- Map init ---
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -176,7 +200,6 @@ export default function TransportMap({ routes, selectedMode, selectedRouteId }: 
       map.resize();
       mapLoadedRef.current = true;
 
-      // Vehicle source (clustered for perf)
       map.addSource('vehicles', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
@@ -185,7 +208,6 @@ export default function TransportMap({ routes, selectedMode, selectedRouteId }: 
         clusterMaxZoom: 14,
       });
 
-      // Cluster circles
       map.addLayer({
         id: 'vehicle-clusters',
         type: 'circle',
@@ -198,7 +220,6 @@ export default function TransportMap({ routes, selectedMode, selectedRouteId }: 
         },
       });
 
-      // Cluster count labels
       map.addLayer({
         id: 'vehicle-cluster-count',
         type: 'symbol',
@@ -208,7 +229,6 @@ export default function TransportMap({ routes, selectedMode, selectedRouteId }: 
         paint: { 'text-color': '#ffffff' },
       });
 
-      // Individual vehicles
       map.addLayer({
         id: 'vehicle-points',
         type: 'circle',
@@ -216,26 +236,13 @@ export default function TransportMap({ routes, selectedMode, selectedRouteId }: 
         filter: ['!', ['has', 'point_count']],
         paint: {
           'circle-color': ['get', 'color'],
-          'circle-radius': [
-            'case',
-            ['boolean', ['get', 'selected'], false],
-            4.5,
-            ['boolean', ['get', 'dimmed'], false],
-            2.5,
-            3.5,
-          ],
+          'circle-radius': 4,
           'circle-stroke-color': '#ffffff',
           'circle-stroke-width': 1,
-          'circle-opacity': [
-            'case',
-            ['boolean', ['get', 'dimmed'], false],
-            0.35,
-            0.9,
-          ],
+          'circle-opacity': 0.9,
         },
       });
 
-      // Route + stops (only for selected route)
       map.addSource('route-lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.addLayer({
         id: 'route-lines',
@@ -258,53 +265,52 @@ export default function TransportMap({ routes, selectedMode, selectedRouteId }: 
         },
       });
 
-      // Initial vehicles
       try {
         const snapshot = await getSnapshot();
         if (!isMounted) return;
-        (map.getSource('vehicles') as GeoJSONSource).setData(buildVehicleFC(snapshot.features.map(f => f.properties)));
+        const vehicles = snapshot.features.map((feature) => feature.properties);
+        vehiclesRef.current = vehicles;
+        (map.getSource('vehicles') as GeoJSONSource).setData(buildVehicleFC(vehicles));
         setVehicleError(null);
-      } catch (e) {
-        console.error(e);
+      } catch (error) {
+        console.error(error);
         if (isMounted) setVehicleError('Could not load vehicle positions');
       }
 
-      // Load stops once (for selected route)
       try {
         const data = await getStops();
         if (!isMounted) return;
         stopsRef.current = data;
         setStopsError(null);
         updateStopsAndRouteLayers();
-      } catch (e) {
-        console.error(e);
+      } catch (error) {
+        console.error(error);
         if (isMounted) setStopsError('Could not load stops');
       }
 
-      // WebSocket updates (throttled)
       let last = 0;
-      const THROTTLE_MS = 500; // raise if still heavy
+      const THROTTLE_MS = 500;
       let socket: WebSocket | null = null;
       try {
         socket = new WebSocket(resolveWebSocketUrl());
-        socket.onmessage = (ev) => {
+        socket.onmessage = (event) => {
           const now = Date.now();
           if (now - last < THROTTLE_MS) return;
           last = now;
           try {
-            const payload = JSON.parse(ev.data) as { type: string; vehicles?: VehiclePosition[] };
+            const payload = JSON.parse(event.data) as { type: string; vehicles?: VehiclePosition[] };
             if (payload.type === 'vehicle-update' && payload.vehicles) {
+              vehiclesRef.current = payload.vehicles;
               (map.getSource('vehicles') as GeoJSONSource).setData(buildVehicleFC(payload.vehicles));
             }
-          } catch (e) {
-            console.error('WS parse', e);
+          } catch (err) {
+            console.error('WS parse', err);
           }
         };
         socket.onerror = () => setVehicleError('Live updates unavailable. Showing last snapshot.');
-        socket.onclose = () =>
-          setVehicleError((prev) => prev ?? 'Live updates unavailable. Showing last snapshot.');
-      } catch (e) {
-        console.error(e);
+        socket.onclose = () => setVehicleError((prev) => prev ?? 'Live updates unavailable. Showing last snapshot.');
+      } catch (err) {
+        console.error(err);
         setVehicleError('Realtime connection unavailable. Showing last snapshot.');
       }
     });
@@ -318,31 +324,37 @@ export default function TransportMap({ routes, selectedMode, selectedRouteId }: 
     };
   }, [buildVehicleFC, updateStopsAndRouteLayers]);
 
-  // React to selection/mode changes
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoadedRef.current) return;
-    // Rebuild vehicles source based on current mode selection using last known data
-    // (We don’t keep a cache; next WS update will fully refresh. This just repaints stops/route.)
+    updateVehicleLayer();
     updateStopsAndRouteLayers();
 
-    if (!selectedRouteId) {
+    if (selectedRouteIds.length === 0) {
       map.easeTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM, duration: 600 });
     } else {
-      focusSelectedRoute();
+      focusSelectedRoutes();
     }
-  }, [selectedMode, selectedRouteId, updateStopsAndRouteLayers, focusSelectedRoute]);
+  }, [selectedMode, selectedRouteIds, updateVehicleLayer, updateStopsAndRouteLayers, focusSelectedRoutes]);
 
   const messages = [vehicleError, stopsError].filter(Boolean) as string[];
+  const hasSelection = selectedRouteIds.length > 0;
 
   return (
     <div className="relative h-full">
       <div ref={containerRef} className="absolute inset-0" />
+      {!hasSelection ? (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="bg-white/90 backdrop-blur rounded border border-stone-200 px-4 py-3 text-sm text-stone-700 shadow">
+            Select one or more routes to display live buses.
+          </div>
+        </div>
+      ) : null}
       {messages.length > 0 && (
         <div className="absolute bottom-4 left-4 right-4 md:right-auto flex flex-col gap-2 text-sm">
-          {messages.map((m, i) => (
-            <div key={i} className="bg-white/90 backdrop-blur rounded border border-red-100 shadow text-red-700 px-3 py-2">
-              {m}
+          {messages.map((message, index) => (
+            <div key={index} className="bg-white/90 backdrop-blur rounded border border-red-100 shadow text-red-700 px-3 py-2">
+              {message}
             </div>
           ))}
         </div>

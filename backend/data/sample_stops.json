@@ -1,30 +1,58 @@
 [
   {
-    "id": "stop-oxford-road",
+    "id": "stop-142-piccadilly",
+    "name": "Manchester Piccadilly",
+    "routeId": "bus-142",
+    "latitude": 53.480759,
+    "longitude": -2.237383
+  },
+  {
+    "id": "stop-142-oxford-road",
     "name": "Oxford Road Station",
-    "routeId": "bus-1",
+    "routeId": "bus-142",
     "latitude": 53.474097,
     "longitude": -2.241752
   },
   {
-    "id": "stop-fallowfield",
+    "id": "stop-142-fallowfield",
     "name": "Fallowfield",
-    "routeId": "bus-1",
+    "routeId": "bus-142",
     "latitude": 53.43613,
     "longitude": -2.22889
   },
   {
-    "id": "stop-bury",
-    "name": "Bury Interchange",
-    "routeId": "tram-1",
-    "latitude": 53.593349,
-    "longitude": -2.297481
+    "id": "stop-142-east-didsbury",
+    "name": "East Didsbury",
+    "routeId": "bus-142",
+    "latitude": 53.41692,
+    "longitude": -2.21821
   },
   {
-    "id": "stop-victoria",
-    "name": "Manchester Victoria",
-    "routeId": "tram-1",
-    "latitude": 53.487295,
-    "longitude": -2.242317
+    "id": "stop-43-piccadilly-gardens",
+    "name": "Piccadilly Gardens",
+    "routeId": "bus-43",
+    "latitude": 53.480147,
+    "longitude": -2.236069
+  },
+  {
+    "id": "stop-43-northenden",
+    "name": "Northenden",
+    "routeId": "bus-43",
+    "latitude": 53.407421,
+    "longitude": -2.251271
+  },
+  {
+    "id": "stop-43-wythenshawe",
+    "name": "Wythenshawe Town Centre",
+    "routeId": "bus-43",
+    "latitude": 53.379121,
+    "longitude": -2.263143
+  },
+  {
+    "id": "stop-43-airport",
+    "name": "Manchester Airport",
+    "routeId": "bus-43",
+    "latitude": 53.365367,
+    "longitude": -2.272198
   }
 ]
