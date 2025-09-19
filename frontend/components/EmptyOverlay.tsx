@@ -1,6 +1,6 @@
 // frontend/components/EmptyOverlay.tsx
 import * as React from "react";
-import { BackendStatus } from "@/lib/useBackendStatus";
+import { BackendStatus } from "../lib/useBackendStatus";
 
 export default function EmptyOverlay({ status }: { status?: BackendStatus }) {
   if (!status) return null;

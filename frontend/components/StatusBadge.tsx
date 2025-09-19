@@ -1,6 +1,6 @@
 // frontend/components/StatusBadge.tsx
 import * as React from "react";
-import { BackendStatus } from "@/lib/useBackendStatus";
+import { BackendStatus } from "../lib/useBackendStatus";
 
 export function StatusBadge({ status }: { status?: BackendStatus }) {
   if (!status) return null;
