@@ -1,11 +1,30 @@
+name: Deploy frontend to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    # Make these available to ALL steps (build/export)
     env:
-      # Prefer org/repo “Variables”; fall back to repo “Secrets”
+      # Your API endpoints (set in Settings ➝ Secrets and variables ➝ Actions)
       NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL != '' && vars.NEXT_PUBLIC_API_BASE_URL || secrets.NEXT_PUBLIC_API_BASE_URL }}
       NEXT_PUBLIC_WS_URL: ${{ vars.NEXT_PUBLIC_WS_URL != '' && vars.NEXT_PUBLIC_WS_URL || secrets.NEXT_PUBLIC_WS_URL }}
+      # Optional: base path for project pages (your repo name). Leave unset if you use a custom domain or user/organization page.
+      NEXT_PUBLIC_BASE_PATH: ${{ vars.NEXT_PUBLIC_BASE_PATH != '' && vars.NEXT_PUBLIC_BASE_PATH || github.event.repository.name }}
 
     steps:
       - name: Checkout
@@ -15,18 +34,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
 
       - name: Print env (debug)
         run: |
           echo "API=$NEXT_PUBLIC_API_BASE_URL"
           echo "WS=$NEXT_PUBLIC_WS_URL"
+          echo "BASE_PATH=$NEXT_PUBLIC_BASE_PATH"
         working-directory: frontend
 
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
 
-      - name: Build static site
+      - name: Build
         working-directory: frontend
         run: npm run build
 
@@ -38,3 +63,14 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: frontend/out
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
