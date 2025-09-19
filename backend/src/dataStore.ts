@@ -165,18 +165,25 @@ function buildRouteShape(
 
 /* ------------------ static GTFS download/compute ------------------ */
 
+// dataStore.ts (only this helper changes)
 async function downloadStaticFeed(staticUrl: string, apiKey: string): Promise<AdmZip> {
-  const response = await fetch(staticUrl, {
-    headers: { 'x-api-key': apiKey },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to download GTFS feed: ${response.status} ${response.statusText}`);
+  // Try with header first (some BODS setups expect x-api-key)
+  let res = await fetch(staticUrl, { headers: { 'x-api-key': apiKey } });
+  if (res.status === 403 || res.status === 401 || res.status === 404) {
+    // Fallback: attach as ?api_key=
+    const url = new URL(staticUrl);
+    url.searchParams.set('api_key', apiKey);
+    res = await fetch(url.toString());
   }
 
-  const arrayBuffer = await response.arrayBuffer();
+  if (!res.ok) {
+    throw new Error(`Failed to download GTFS feed: ${res.status} ${res.statusText}`);
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
   return new AdmZip(Buffer.from(arrayBuffer));
 }
+
 
 
 
