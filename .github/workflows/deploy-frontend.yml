@@ -57,7 +57,7 @@ jobs:
 
       - name: Export static site
         working-directory: frontend
-        run: npx next export -o out
+        run: npx next export --outdir out
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
