@@ -122,6 +122,28 @@ docker-compose up
 
 ---
 
+## 🌐 Deploying the frontend to GitHub Pages
+
+This repository now ships with a GitHub Actions workflow (`.github/workflows/deploy-frontend.yml`) that builds the Next.js
+frontend as a static export and publishes it to GitHub Pages. The build automatically adjusts the asset base path so the app
+works from `https://<username>.github.io/<repo>/`.
+
+### One-time setup
+
+1. In your repository settings, enable GitHub Pages with the "GitHub Actions" source.
+2. Define a repository variable or secret called `NEXT_PUBLIC_API_BASE_URL` that points at a publicly reachable backend URL
+   (for example, a Render/railway deployment of the API). Optionally add `NEXT_PUBLIC_WS_URL` if your WebSocket endpoint
+   lives on a different host.
+3. (Optional) Set `NEXT_PUBLIC_BASE_PATH` if you need to serve the site from a custom sub-path. Otherwise the workflow will
+   infer `/<repo>` automatically for project pages.
+
+### Deployment
+
+- Push to `main` (or trigger the workflow manually) and the site will be rebuilt and published automatically.
+- The exported site lives in `frontend/out` if you need to download the artifact or host it elsewhere.
+
+---
+
 ## 📂 Project Structure
 ```
 /frontend/         # Next.js app (MapLibre GL)

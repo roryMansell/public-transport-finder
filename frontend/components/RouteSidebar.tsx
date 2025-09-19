@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { getRoutes, type Route } from '../lib/api';
+import { API_BASE_URL } from '../lib/config';
 
 function modeLabel(mode: Route['mode']) {
   return mode === 'bus' ? 'Bus' : 'Tram';
@@ -87,7 +88,7 @@ export default function RouteSidebar() {
           everything offline.
         </p>
         <p>
-          Backend URL: <code className="bg-stone-100 px-1 py-0.5 rounded">{process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000'}</code>
+          Backend URL: <code className="bg-stone-100 px-1 py-0.5 rounded">{API_BASE_URL}</code>
         </p>
       </div>
     </aside>
