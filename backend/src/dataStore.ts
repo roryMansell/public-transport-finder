@@ -166,17 +166,18 @@ function buildRouteShape(
 /* ------------------ static GTFS download/compute ------------------ */
 
 async function downloadStaticFeed(staticUrl: string, apiKey: string): Promise<AdmZip> {
-  // Append API key as query param
-  const url = new URL(staticUrl);
-  url.searchParams.set('api_key', apiKey);
+  const response = await fetch(staticUrl, {
+    headers: { 'x-api-key': apiKey },
+  });
 
-  const response = await fetch(url.toString());
   if (!response.ok) {
     throw new Error(`Failed to download GTFS feed: ${response.status} ${response.statusText}`);
   }
+
   const arrayBuffer = await response.arrayBuffer();
   return new AdmZip(Buffer.from(arrayBuffer));
 }
+
 
 
 async function computeTransitData(): Promise<TransitData> {

@@ -24,7 +24,7 @@ function resolveSpeed(speedMetersPerSecond?: number | null) {
 export async function fetchVehiclePositions(
   config: BodsConfig,
   geometries: Map<string, RouteGeometry>,
-  tripToRoute: Map<string, string>
+  tripToRoute: Map<string, string>,
 ): Promise<VehiclePosition[]> {
   const vehicles: VehiclePosition[] = [];
 
@@ -45,7 +45,9 @@ export async function fetchVehiclePositions(
 
         const position = vehicle.position;
         const trip = vehicle.trip;
-        if (!position || typeof position.latitude !== 'number' || typeof position.longitude !== 'number') continue;
+        if (!position || typeof position.latitude !== 'number' || typeof position.longitude !== 'number') {
+          continue;
+        }
 
         const tripId = trip?.tripId ?? undefined;
         const routeId = trip?.routeId ?? (tripId ? tripToRoute.get(tripId) : undefined);
