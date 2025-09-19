@@ -254,9 +254,9 @@ async function computeTransitData(): Promise<TransitData> {
           routeStops = buildStopsForRoute(routeId, representativeTrip, stopTimesByTrip, stopsById);
         }
 
-        // bbox filter: only keep route if it has at least one stop in bbox
-        if (!config.operatorId && config['bbox']) {
-          const inside = routeStops.some((s) => inBbox(s.latitude, s.longitude, config['bbox']));
+        // bbox filter: only keep the route if it has at least one stop inside the bbox
+        if (!config.operatorId && config.bbox) {
+          const inside = routeStops.some((s) => inBbox(s.latitude, s.longitude, config.bbox));
           if (!inside) continue;
         }
 

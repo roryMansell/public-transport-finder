@@ -1,8 +1,9 @@
 export interface BodsConfig {
   apiKey: string;
-  operatorId?: string;        // optional (all-operators mode when omitted)
-  staticUrl?: string;         // undefined in all-operators mode
+  operatorId?: string;      // optional
+  staticUrl?: string;       // optional
   vehiclePositionsUrl: string;
+  bbox?: string;            // ✅ add this
 }
 
 function buildStaticUrl(operatorId: string | undefined) {
@@ -53,7 +54,11 @@ export function resolveBodsConfig(): BodsConfig {
   return {
     apiKey,
     operatorId: operatorId || undefined,
-    staticUrl: buildStaticUrl(operatorId),
+    staticUrl: operatorId
+      ? `https://data.bus-data.dft.gov.uk/gtfs/feed/${encodeURIComponent(operatorId)}/latest/download`
+      : undefined,
     vehiclePositionsUrl: buildVehicleUrl(operatorId, bbox, apiKey),
+    bbox, // ✅ carry it through
   };
 }
+
