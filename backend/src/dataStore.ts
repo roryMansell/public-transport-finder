@@ -52,7 +52,7 @@ interface RawShapeRow {
 
 let cachedTransitData: Promise<TransitData> | null = null;
 
-/* ------------------------- helpers (pure) ------------------------- */
+/* ------------------------- helpers ------------------------- */
 
 function parseCsv<T>(zip: AdmZip, entryName: string): T[] {
   const entry = zip.getEntry(entryName);
@@ -70,13 +70,17 @@ function parseCsv<T>(zip: AdmZip, entryName: string): T[] {
 function normaliseColor(input?: string) {
   if (!input) return '#005CAB';
   const value = input.startsWith('#') ? input : `#${input}`;
-  if (/^#([0-9a-fA-F]{6})$/.test(value)) return value;
+  if (/^#([0-9a-fA-F]{6})$/.test(value)) {
+    return value;
+  }
   return '#005CAB';
 }
 
 function resolveMode(routeType?: string): Route['mode'] {
   const numeric = Number(routeType);
-  if (Number.isNaN(numeric)) return 'bus';
+  if (Number.isNaN(numeric)) {
+    return 'bus';
+  }
   switch (numeric) {
     case 0:
     case 1:
@@ -175,102 +179,76 @@ async function downloadStaticFeed(staticUrl: string, apiKey: string): Promise<Ad
 async function computeTransitData(): Promise<TransitData> {
   const config = resolveBodsConfig();
 
-  // Determine which operators to include for STATIC GTFS
-  // Priority: BODS_OPERATOR_IDS (comma separated) -> BODS_OPERATOR_ID (single)
-  const operatorIds =
-    (config.operatorIds && config.operatorIds.length > 0)
-      ? config.operatorIds
-      : (config.operatorId ? [config.operatorId] : []);
-
-  if (operatorIds.length === 0) {
-    console.warn(
-      'No operator IDs provided for static GTFS. Set BODS_OPERATOR_IDS="OP1,OP2,..." or BODS_OPERATOR_ID.'
-    );
-    return {
-      routes: [],
-      stops: [],
-      geometries: new Map<string, RouteGeometry>(),
-      tripToRoute: new Map<string, string>(),
-    };
-  }
-
   const routes: Route[] = [];
   const stops: Stop[] = [];
   const geometries = new Map<string, RouteGeometry>();
   const tripToRoute = new Map<string, string>();
 
-  for (const operatorId of operatorIds) {
+  // loop over each operator’s static feed
+  for (const staticUrl of config.staticUrls) {
+    let zip: AdmZip;
     try {
-      const staticUrl = `https://data.bus-data.dft.gov.uk/gtfs/feed/${encodeURIComponent(
-        operatorId
-      )}/latest/download`;
-      const zip = await downloadStaticFeed(staticUrl, config.apiKey);
+      zip = await downloadStaticFeed(staticUrl, config.apiKey);
+    } catch (err) {
+      console.error(`Skipping static feed ${staticUrl}:`, err);
+      continue;
+    }
 
-      const rawRoutes = parseCsv<RawRouteRow>(zip, 'routes.txt');
-      const rawTrips = parseCsv<RawTripRow>(zip, 'trips.txt');
-      const rawStops = parseCsv<RawStopRow>(zip, 'stops.txt');
-      const rawStopTimes = parseCsv<RawStopTimeRow>(zip, 'stop_times.txt');
-      const rawShapes = parseCsv<RawShapeRow>(zip, 'shapes.txt');
+    const rawRoutes = parseCsv<RawRouteRow>(zip, 'routes.txt');
+    const rawTrips = parseCsv<RawTripRow>(zip, 'trips.txt');
+    const rawStops = parseCsv<RawStopRow>(zip, 'stops.txt');
+    const rawStopTimes = parseCsv<RawStopTimeRow>(zip, 'stop_times.txt');
+    const rawShapes = parseCsv<RawShapeRow>(zip, 'shapes.txt');
 
-      const stopTimesByTrip = new Map<string, RawStopTimeRow[]>();
-      for (const row of rawStopTimes) {
-        if (!stopTimesByTrip.has(row.trip_id)) stopTimesByTrip.set(row.trip_id, []);
-        stopTimesByTrip.get(row.trip_id)!.push(row);
-      }
+    const stopTimesByTrip = new Map<string, RawStopTimeRow[]>();
+    for (const row of rawStopTimes) {
+      if (!stopTimesByTrip.has(row.trip_id)) stopTimesByTrip.set(row.trip_id, []);
+      stopTimesByTrip.get(row.trip_id)!.push(row);
+    }
 
-      const shapesById = new Map<string, Array<{ sequence: number; coord: [number, number] }>>();
-      for (const row of rawShapes) {
-        const shapeId = row.shape_id;
-        if (!shapeId) continue;
-        const latitude = Number(row.shape_pt_lat);
-        const longitude = Number(row.shape_pt_lon);
-        const sequence = Number(row.shape_pt_sequence);
-        if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !Number.isFinite(sequence)) continue;
-        if (!shapesById.has(shapeId)) shapesById.set(shapeId, []);
-        shapesById.get(shapeId)!.push({ sequence, coord: [longitude, latitude] });
-      }
+    const shapesById = new Map<string, Array<{ sequence: number; coord: [number, number] }>>();
+    for (const row of rawShapes) {
+      const shapeId = row.shape_id;
+      if (!shapeId) continue;
+      const latitude = Number(row.shape_pt_lat);
+      const longitude = Number(row.shape_pt_lon);
+      const sequence = Number(row.shape_pt_sequence);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !Number.isFinite(sequence)) continue;
+      if (!shapesById.has(shapeId)) shapesById.set(shapeId, []);
+      shapesById.get(shapeId)!.push({ sequence, coord: [longitude, latitude] });
+    }
 
-      const stopsById = new Map<string, RawStopRow>();
-      for (const row of rawStops) stopsById.set(row.stop_id, row);
+    const stopsById = new Map<string, RawStopRow>();
+    for (const row of rawStops) {
+      stopsById.set(row.stop_id, row);
+    }
 
-      const tripsByRoute = new Map<string, RawTripRow[]>();
-      for (const trip of rawTrips) {
-        const prefixedTripId = `${operatorId}:${trip.trip_id}`;
-        const prefixedRouteId = `${operatorId}:${trip.route_id}`;
-        tripToRoute.set(prefixedTripId, prefixedRouteId);
-        if (!tripsByRoute.has(prefixedRouteId)) tripsByRoute.set(prefixedRouteId, []);
-        tripsByRoute.get(prefixedRouteId)!.push({
-          ...trip,
-          trip_id: prefixedTripId,
-          route_id: prefixedRouteId,
-        });
-      }
+    const tripsByRoute = new Map<string, RawTripRow[]>();
+    for (const trip of rawTrips) {
+      tripToRoute.set(trip.trip_id, trip.route_id);
+      if (!tripsByRoute.has(trip.route_id)) tripsByRoute.set(trip.route_id, []);
+      tripsByRoute.get(trip.route_id)!.push(trip);
+    }
 
-      for (const route of rawRoutes) {
-        const routeId = `${operatorId}:${route.route_id}`;
-        const routeTrips = tripsByRoute.get(routeId) ?? [];
-        const representativeTrip = chooseRepresentativeTrip(routeId, routeTrips, stopTimesByTrip);
-        const shape = buildRouteShape(representativeTrip?.shape_id, shapesById);
-        const geometry = buildRouteGeometry(routeId, shape);
-        geometries.set(routeId, geometry);
+    for (const route of rawRoutes) {
+      const routeTrips = tripsByRoute.get(route.route_id) ?? [];
+      const representativeTrip = chooseRepresentativeTrip(route.route_id, routeTrips, stopTimesByTrip);
+      const shape = buildRouteShape(representativeTrip?.shape_id, shapesById);
+      const geometry = buildRouteGeometry(route.route_id, shape);
+      geometries.set(route.route_id, geometry);
 
-        const routeObj: Route = {
-          id: routeId,
-          name: resolveRouteName(route),
-          mode: resolveMode(route.route_type),
-          color: normaliseColor(route.route_color),
-          shape,
-        };
+      routes.push({
+        id: route.route_id,
+        name: resolveRouteName(route),
+        mode: resolveMode(route.route_type),
+        color: normaliseColor(route.route_color),
+        shape,
+      });
 
-        const routeStops = representativeTrip
-          ? buildStopsForRoute(routeId, representativeTrip, stopTimesByTrip, stopsById)
-          : [];
-
-        routes.push(routeObj);
+      if (representativeTrip) {
+        const routeStops = buildStopsForRoute(route.route_id, representativeTrip, stopTimesByTrip, stopsById);
         stops.push(...routeStops);
       }
-    } catch (e) {
-      console.warn(`Failed to process operator ${operatorId}`, e);
     }
   }
 
