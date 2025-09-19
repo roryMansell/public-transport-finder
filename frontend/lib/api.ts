@@ -5,6 +5,7 @@ export interface Route {
   name: string;
   mode: 'bus' | 'tram';
   color: string;
+  shape: Array<[number, number]>;
 }
 
 export interface Stop {
@@ -23,6 +24,7 @@ export interface VehiclePosition {
   bearing: number;
   speedKph: number;
   updatedAt: string;
+  progress?: number;
 }
 
 export interface GeoJsonFeatureCollection {

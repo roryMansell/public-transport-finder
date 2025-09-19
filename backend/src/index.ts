@@ -1,10 +1,13 @@
 import http from 'node:http';
 import express from 'express';
 import cors from 'cors';
-import { loadVehicles } from './dataStore.js';
+import { getRealtimeLookups } from './dataStore.js';
 import { VehicleSimulator } from './vehicleSimulator.js';
 import { registerRoutes } from './routes.js';
 import { createWebSocketServer } from './websocketServer.js';
+import { resolveBodsConfig } from './bodsConfig.js';
+import { fetchVehiclePositions } from './vehicleFetcher.js';
+import type { VehiclePosition } from './types.js';
 
 const PORT = Number(process.env.PORT ?? 4000);
 
@@ -16,8 +19,18 @@ async function main() {
     res.json({ status: 'ok' });
   });
 
-  const initialVehicles = await loadVehicles();
-  const simulator = new VehicleSimulator(initialVehicles);
+  const config = resolveBodsConfig();
+  const { geometries, tripToRoute } = await getRealtimeLookups();
+
+  const fetcher = () => fetchVehiclePositions(config, geometries, tripToRoute);
+  let initialVehicles: VehiclePosition[] = [];
+  try {
+    initialVehicles = await fetcher();
+  } catch (error) {
+    console.error('Failed to fetch initial vehicle positions', error);
+  }
+
+  const simulator = new VehicleSimulator(initialVehicles, fetcher);
   registerRoutes(app, simulator);
 
   const server = http.createServer(app);
