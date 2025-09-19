@@ -1,4 +1,5 @@
-import { setInterval } from 'node:timers';
+// ❌ remove this:
+// import { setInterval } from 'node:timers';
 import { VehiclePosition } from './types.js';
 
 export type VehicleListener = (vehicles: VehiclePosition[]) => void;
@@ -6,7 +7,9 @@ export type VehicleListener = (vehicles: VehiclePosition[]) => void;
 export class VehicleSimulator {
   private vehicles: VehiclePosition[];
   private listeners: Set<VehicleListener> = new Set();
-  private timer?: NodeJS.Timer;
+
+  // ✅ use a safe type for Node/browser typings
+  private timer?: ReturnType<typeof setInterval>;
 
   constructor(initialVehicles: VehiclePosition[]) {
     this.vehicles = initialVehicles;
@@ -19,9 +22,9 @@ export class VehicleSimulator {
   }
 
   public start(intervalMs = 10000) {
-    if (this.timer) {
-      return;
-    }
+    if (this.timer) return;
+
+    // ✅ use the global setInterval (no import)
     this.timer = setInterval(() => {
       this.tick();
       this.broadcast();
@@ -30,7 +33,7 @@ export class VehicleSimulator {
 
   public stop() {
     if (!this.timer) return;
-    clearInterval(this.timer);
+    clearInterval(this.timer);   // ✅ matches the ReturnType<typeof setInterval>
     this.timer = undefined;
   }
 
