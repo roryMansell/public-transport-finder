@@ -8,7 +8,7 @@ import type { RouteGeometry } from './geometry.js';
 import { projectPointOntoRoute } from './geometry.js';
 
 // ✅ status updates
-import { setStatus } from './status.js';
+import { setStatus } from "./status.js";
 
 function resolveTimestamp(vehicleTimestamp?: number | Long | null, headerTimestamp?: number | Long | null) {
   const timestamp = vehicleTimestamp ?? headerTimestamp ?? Math.floor(Date.now() / 1000);

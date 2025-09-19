@@ -1,7 +1,7 @@
 // backend/src/index.ts
 import express from "express";
 import cors from "cors";
-import { setStatus } from "./status.js";
+import { getStatus, setStatus } from "./status.js";
 import { registerRoutes } from "./routes.js";
 
 const app = express();
