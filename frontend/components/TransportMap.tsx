@@ -266,6 +266,14 @@ export default function TransportMap({ routes, selectedMode, selectedRouteId }: 
     mapRef.current = map;
 
     const currentMarkers = markersRef.current;
+    let resizeObserver: ResizeObserver | null = null;
+
+    if (containerRef.current && 'ResizeObserver' in window) {
+      resizeObserver = new ResizeObserver(() => {
+        map.resize();
+      });
+      resizeObserver.observe(containerRef.current);
+    }
 
     getSnapshot()
       .then((snapshot) => {
@@ -331,6 +339,7 @@ export default function TransportMap({ routes, selectedMode, selectedRouteId }: 
     }
 
     map.on('load', () => {
+      map.resize();
       mapLoadedRef.current = true;
       map.addSource('route-lines', {
         type: 'geojson',
@@ -427,6 +436,9 @@ export default function TransportMap({ routes, selectedMode, selectedRouteId }: 
       mapRef.current = null;
       currentMarkers.forEach(({ marker }) => marker.remove());
       currentMarkers.clear();
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
     };
   }, [applyMarkerFilters, updateOverlays]);
 
