@@ -174,3 +174,53 @@ MIT — free to use, modify, and share.
 ---
 
 Happy coding! 🚎🗺️
+
+---
+
+## ✅ Current Implementation Snapshot
+
+This repository now ships with a working local-first stack that demonstrates the MVP experience described above. It uses
+simulated vehicle movements so that everything runs without external credentials.
+
+### Backend (`/backend`)
+- Express REST API exposing `/api/routes`, `/api/stops`, `/api/snapshot`, and `/health`.
+- WebSocket endpoint at `/live` that streams vehicle updates every five seconds.
+- In-memory simulator that jitters sample vehicles and supports loading custom GeoJSON snapshots via `POST /admin/load`.
+- Vitest unit tests covering the simulator broadcast behaviour.
+
+### Frontend (`/frontend`)
+- Next.js 14 (App Router) with a MapLibre GL map fed by the backend.
+- Tailwind CSS styling with a responsive sidebar listing available routes.
+- Live updates via WebSocket plus graceful fallbacks when realtime data is unavailable.
+
+### Ops & Tooling
+- Dockerfiles for both frontend and backend and a Docker Compose definition that wires them together.
+- `/services` includes ingestion notes for BODS feeds and a small Python replay helper for offline development.
+
+### Running locally
+```bash
+# Terminal 1 – backend
+cd backend
+npm install
+npm run dev
+
+# Terminal 2 – frontend
+cd frontend
+npm install
+npm run dev
+```
+Visit http://localhost:3000 to see the realtime map.
+
+To run the simulator tests:
+```bash
+cd backend
+npm test
+```
+
+To lint the frontend:
+```bash
+cd frontend
+npm run lint
+```
+
+---

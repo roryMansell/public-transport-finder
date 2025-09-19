@@ -1,0 +1,20 @@
+[
+  {
+    "id": "vehicle-142-1",
+    "routeId": "bus-1",
+    "latitude": 53.4705,
+    "longitude": -2.2374,
+    "bearing": 180,
+    "speedKph": 32,
+    "updatedAt": "2024-01-01T12:00:00.000Z"
+  },
+  {
+    "id": "vehicle-tram-1",
+    "routeId": "tram-1",
+    "latitude": 53.515,
+    "longitude": -2.279,
+    "bearing": 45,
+    "speedKph": 40,
+    "updatedAt": "2024-01-01T12:00:00.000Z"
+  }
+]
