@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.next/
+out/
+.env*
+.DS_Store
+coverage/
+logs/
+*.log
+# python artifacts
+__pycache__/
+*.pyc

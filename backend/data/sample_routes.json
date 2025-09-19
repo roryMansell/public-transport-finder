@@ -1,0 +1,14 @@
+[
+  {
+    "id": "bus-1",
+    "name": "Magic Bus 142",
+    "mode": "bus",
+    "color": "#005CAB"
+  },
+  {
+    "id": "tram-1",
+    "name": "Metrolink Bury",
+    "mode": "tram",
+    "color": "#FFCD00"
+  }
+]

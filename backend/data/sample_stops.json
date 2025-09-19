@@ -1,0 +1,30 @@
+[
+  {
+    "id": "stop-oxford-road",
+    "name": "Oxford Road Station",
+    "routeId": "bus-1",
+    "latitude": 53.474097,
+    "longitude": -2.241752
+  },
+  {
+    "id": "stop-fallowfield",
+    "name": "Fallowfield",
+    "routeId": "bus-1",
+    "latitude": 53.43613,
+    "longitude": -2.22889
+  },
+  {
+    "id": "stop-bury",
+    "name": "Bury Interchange",
+    "routeId": "tram-1",
+    "latitude": 53.593349,
+    "longitude": -2.297481
+  },
+  {
+    "id": "stop-victoria",
+    "name": "Manchester Victoria",
+    "routeId": "tram-1",
+    "latitude": 53.487295,
+    "longitude": -2.242317
+  }
+]
