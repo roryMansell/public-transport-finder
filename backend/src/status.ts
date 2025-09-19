@@ -1,12 +1,24 @@
 // backend/src/status.ts
+export type FeedDiag = {
+  url: string;
+  ok?: boolean;
+  httpStatus?: number;
+  statusText?: string;
+  bytes?: number;
+  entities?: number;      // decoded GTFS-RT entities
+  error?: string;
+  at?: string;            // ISO timestamp of this probe
+};
+
 export type BackendStatus = {
   realtimeEnabled: boolean;
-  lastFetchAt?: string;       // ISO timestamp of last successful realtime fetch
-  lastFetchError?: string;    // last fetch error message (stringified)
-  vehiclesCount: number;      // number of vehicles in the last snapshot
-  routesCount: number;        // number of routes currently loaded
-  stopsCount: number;         // number of stops currently loaded
-  usingSamples: boolean;      // always false now (we're removing samples)
+  lastFetchAt?: string;
+  lastFetchError?: string;
+  vehiclesCount: number;
+  routesCount: number;
+  stopsCount: number;
+  usingSamples: boolean;
+  feeds?: FeedDiag[];     // 👈 NEW: per-feed info
 };
 
 let status: BackendStatus = {
@@ -15,6 +27,7 @@ let status: BackendStatus = {
   routesCount: 0,
   stopsCount: 0,
   usingSamples: false,
+  feeds: [],
 };
 
 export const getStatus = (): BackendStatus => status;
